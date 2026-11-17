@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>맛집탐방 기록 지도</title>
+<style>
+/* 레이아웃: 노란 머리띠 아래에 필터, 왼쪽에 지도와 목록, 오른쪽에 선택한 식당의 보고서. 흰 바탕 단일 테마. */
+@font-face{font-family:"Otoki Sans";font-weight:500;font-display:swap;src:url("fonts/OtokiSans3N-Medium.ttf") format("truetype")}
+@font-face{font-family:"Otoki Sans";font-weight:700;font-display:swap;src:url("fonts/OtokiSans3N-Bold.ttf") format("truetype")}
+@font-face{font-family:"Otoki Sans";font-weight:800;font-display:swap;src:url("fonts/OtokiSans3N-ExtraBold.ttf") format("truetype")}
+:root{
+  color-scheme:light;
+  --bg:#ffffff; --tint:#fff7cf; --ink:#1d1a12; --muted:#6b6654; --line:#e9e2c4;
+  --yellow:#ffd200; --yellow-deep:#e9b800; --red:#d3001b; --map:#fcf7df; --water:#bcd8ee;
+  --display:"Otoki Sans","Malgun Gothic","Apple SD Gothic Neo",sans-serif;
+  --body:"Otoki Sans","Malgun Gothic","Apple SD Gothic Neo",sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-weight:500;font-size:15px;line-height:1.6}
+h1,h2,h3{margin:0;text-wrap:balance}
+b,strong{font-weight:700}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.band{background:var(--yellow)}
+.wrap{max-width:1240px;margin:0 auto;padding:0 16px}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;justify-content:space-between;padding-top:14px;padding-bottom:14px}
+.brand{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.brand h1{font-family:var(--display);font-weight:800;font-size:26px;letter-spacing:-.01em}
+.pill{display:inline-block;padding:1px 10px;border-radius:999px;border:1px solid var(--line);font-size:12.5px;color:var(--muted);white-space:nowrap;background:var(--bg)}
+.pill.kind{background:var(--yellow);border-color:var(--yellow);color:var(--ink);font-weight:700}
+.pill.sample{border-style:dashed;border-color:var(--muted)}
+.who{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}
+.btn{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:7px 14px;cursor:pointer}
+.btn:hover{border-color:var(--ink)}
+.btn[disabled]{opacity:.55;cursor:default}
+.btn.primary{background:var(--yellow);border-color:var(--yellow-deep);font-weight:700}
+.btn.dark{background:var(--ink);border-color:var(--ink);color:#fff;font-weight:700}
+.btn.danger{color:var(--red)}
+.btn.small{padding:4px 11px;font-size:13.5px}
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:end;padding:16px 0 12px}
+.field{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.field label{display:block}
+.field input,.field select,.field textarea{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px;color:var(--ink);font-size:15px;min-width:0}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--yellow-deep)}
+.field textarea{resize:vertical;min-height:64px}
+.filters .field{flex:1 1 130px}
+.filters .field input,.filters .field select{height:40px}
+.filters .grow{flex:2 1 200px}
+.summary{font-size:14px;color:var(--muted);padding-bottom:12px;font-variant-numeric:tabular-nums}
+.summary b{color:var(--ink)}
+.banner{background:var(--tint);border:1px solid var(--yellow-deep);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.banner.bad{background:#fff0f0;border-color:var(--red);color:var(--red)}
+.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-areas:"map detail" "list detail";grid-template-rows:auto 1fr;gap:16px;align-items:start;padding-bottom:16px}
+.mapbox{grid-area:map;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.mapbox svg{display:block;width:100%;height:auto;background:var(--map)}
+.gmap{width:100%;height:460px}
+.mapnote{padding:8px 12px;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+.legend{display:flex;flex-wrap:wrap;gap:8px}
+.dot{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#fff;font-size:11.5px;font-weight:700;margin-right:3px;flex:none}
+.list{grid-area:list;display:flex;flex-direction:column;gap:8px}
+.row{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer}
+.row:hover{border-color:var(--yellow-deep)}
+.row[aria-current="true"]{background:var(--tint);border-color:var(--yellow-deep);box-shadow:inset 4px 0 0 var(--yellow)}
+.row .main{flex:1;min-width:0}
+.row .name{font-weight:700;overflow-wrap:anywhere}
+.row .meta{font-size:13px;color:var(--muted)}
+.row .score{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--red);font-weight:700}
+.detail{grid-area:detail;border:1px solid var(--line);border-top:5px solid var(--yellow);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:14px}
+.detail h2{font-size:23px;font-weight:800;overflow-wrap:anywhere}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.stars{color:var(--red);letter-spacing:1px}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:14.5px}
+.facts dt{color:var(--muted);white-space:nowrap}
+.facts dd{margin:0;overflow-wrap:anywhere}
+.sec h3{font-size:14px;font-weight:700;padding-bottom:4px;border-bottom:2px solid var(--yellow);margin-bottom:8px}
+.sec p{margin:0 0 8px;max-width:65ch;white-space:pre-wrap;overflow-wrap:anywhere}
+.sec .lab{font-size:13px;color:var(--muted);margin-bottom:2px}
+.rating{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;font-size:14.5px;padding:4px 0}
+.rating .by{color:var(--muted);font-size:13px}
+.starpick{display:flex;gap:2px}
+.starpick button{background:none;border:0;font-size:24px;line-height:1;cursor:pointer;color:#d9d3bb;padding:2px}
+.starpick button.on{color:var(--red)}
+.inline{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.inline input[type=text]{flex:1 1 160px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+.files{display:flex;flex-direction:column;gap:6px;font-size:14px}
+.files img{max-width:100%;border-radius:8px;border:1px solid var(--line)}
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.photos .ph{position:relative;padding:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--tint);cursor:zoom-in;aspect-ratio:4/3;display:block;width:100%}
+.photos .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.photos .ph.wait{cursor:default;display:flex;align-items:center;justify-content:center;font-size:12.5px;color:var(--muted)}
+.photos .cell{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.lightbox{align-items:center;cursor:zoom-out}
+.lightbox img{max-width:100%;max-height:90vh;border-radius:8px;background:#fff}
+.empty{color:var(--muted);padding:24px 8px;text-align:center}
+a{color:var(--ink);text-decoration-color:var(--yellow-deep);text-decoration-thickness:2px;text-underline-offset:3px}
+.overlay{position:fixed;inset:0;background:rgba(29,26,18,.5);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto;z-index:10}
+.modal{background:var(--bg);border-radius:14px;border-top:6px solid var(--yellow);padding:20px;width:100%;max-width:720px;display:flex;flex-direction:column;gap:14px}
+.modal h2{font-size:20px;font-weight:800}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.hint{font-size:12.5px;color:var(--muted)}
+.gatebg{min-height:100vh;background:var(--yellow);padding:8vh 16px 32px}
+.gate{max-width:440px;margin:0 auto;background:var(--bg);border-radius:16px;padding:28px;display:flex;flex-direction:column;gap:14px}
+.gate h1{font-family:var(--display);font-weight:800;font-size:30px}
+.err{color:var(--red);font-size:13.5px}
+svg text{font-family:var(--body)}
+.mk{cursor:pointer}
+@media (max-width:820px){
+  .grid{grid-template-columns:minmax(0,1fr);grid-template-areas:"map" "detail" "list"}
+  .gmap{height:340px}
+}
+@media (prefers-reduced-motion:no-preference){.row,.btn{transition:border-color .15s}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="config.js"></script>
+<script>
+(function(){
+"use strict";
+var CFG=window.MATZIP_CONFIG||{};
+var REAL=!!(CFG.msClientId&&CFG.msTenantId&&CFG.sharepointSite);
+var FBC=CFG.firebase||null;
+var FB=!REAL&&!!(FBC&&FBC.apiKey&&FBC.projectId);
+var LIVE=REAL||FB;
+var FB_VER="10.12.2",CHUNK=600*1024,FILE_MAX=10*1024*1024;
+var LIST=CFG.sharepointList||"MatzipRecords";
+var FOLDER=CFG.sharepointFolder||"MatzipReports";
+var SCOPES=["User.Read","Sites.ReadWrite.All"];
+var AREAS=[
+ {k:"성수",sido:"서울",lat:37.544,lng:127.056},{k:"강남역",sido:"서울",lat:37.498,lng:127.028},
+ {k:"홍대입구",sido:"서울",lat:37.557,lng:126.924},{k:"종로",sido:"서울",lat:37.570,lng:126.983},
+ {k:"을지로",sido:"서울",lat:37.566,lng:126.991},{k:"여의도",sido:"서울",lat:37.525,lng:126.925},
+ {k:"이태원",sido:"서울",lat:37.534,lng:126.994},{k:"잠실",sido:"서울",lat:37.513,lng:127.100},
+ {k:"판교",sido:"경기",lat:37.395,lng:127.111},{k:"수원 인계동",sido:"경기",lat:37.265,lng:127.030},
+ {k:"인천 송도",sido:"인천",lat:37.392,lng:126.640},{k:"대전 둔산",sido:"대전",lat:36.351,lng:127.378},
+ {k:"대구 동성로",sido:"대구",lat:35.869,lng:128.596},{k:"광주 충장로",sido:"광주",lat:35.148,lng:126.917},
+ {k:"부산 서면",sido:"부산",lat:35.158,lng:129.060},{k:"부산 해운대",sido:"부산",lat:35.163,lng:129.163},
+ {k:"제주시",sido:"제주",lat:33.500,lng:126.531}
+];
+var CUISINES=["한식","양식","일식","중식","기타"];
+var CCOLOR={"한식":"#0f6b4f","양식":"#2b5fb0","일식":"#b03a5b","중식":"#a85a14","기타":"#5a5a5a"};
+var KINDS=["맛집탐방","시장조사"];
+var HAN=[[126.80,37.58],[126.88,37.555],[126.93,37.535],[126.97,37.52],[127.01,37.525],[127.05,37.53],[127.09,37.52],[127.12,37.535],[127.17,37.57]];
+var KEY_R="matzip.records.v1",KEY_U="matzip.user.v1";
+
+function load(k){try{var v=localStorage.getItem(k);return v?JSON.parse(v):null}catch(e){return null}}
+function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+var SIDOS=["서울","부산","대구","인천","광주","대전","울산","세종","경기","강원","충북","충남","전북","전남","경북","경남","제주","해외"];
+var SIDO_C={"서울":[37.5665,126.978],"부산":[35.1796,129.0756],"대구":[35.8714,128.6014],"인천":[37.4563,126.7052],"광주":[35.1595,126.8526],"대전":[36.3504,127.3845],"울산":[35.5384,129.3114],"세종":[36.48,127.289],"경기":[37.4138,127.5183],"강원":[37.8228,128.1555],"충북":[36.6357,127.4913],"충남":[36.6588,126.6728],"전북":[35.7175,127.153],"전남":[34.8161,126.463],"경북":[36.576,128.5056],"경남":[35.4606,128.2132],"제주":[33.4996,126.5312]};
+var PAL=["#6a4c93","#1f7a8c","#8a5a00","#3d5a80","#7b2d26","#4a6b2a"];
+function recs(){return (typeof S!=="undefined"&&S&&S.records)||[]}
+function findArea(k){
+ for(var i=0;i<AREAS.length;i++)if(AREAS[i].k===k)return AREAS[i];
+ var rs=recs();for(i=0;i<rs.length;i++)if(rs[i].area===k&&rs[i].sido)return {k:k,sido:rs[i].sido,lat:rs[i].lat,lng:rs[i].lng};
+ return null;
+}
+function area(k){return findArea(k)||{k:k,sido:"기타",lat:36.5,lng:127.8}}
+function sidoOf(r){return r.sido||area(r.area||"").sido}
+function areaText(r){var k=r.area||"",sd=sidoOf(r);return k.indexOf(sd)===0?k:sd+" "+k}
+function ccolor(c){return CCOLOR[c]||PAL[Math.abs(hash(c||""))%PAL.length]}
+function kinds(){return uniq(KINDS.concat(recs().map(function(r){return r.kind})))}
+function cuisines(){return uniq(CUISINES.concat(recs().map(function(r){return r.cuisine})))}
+function mapAreas(){var out=AREAS.slice(),seen={};AREAS.forEach(function(a){seen[a.k]=1});recs().forEach(function(r){if(r.area&&!seen[r.area]){seen[r.area]=1;out.push({k:r.area,sido:sidoOf(r),lat:r.lat,lng:r.lng})}});return out}
+function hash(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return h}
+function place(id,k){var a=typeof k==="string"?area(k):k,h=hash(id);return {lat:a.lat+((h%13)-6)*0.0009,lng:a.lng+(((h>>4)%13)-6)*0.0011}}
+function avg(r){if(!r.ratings.length)return null;var s=0;r.ratings.forEach(function(x){s+=x.stars});return s/r.ratings.length}
+function starText(n){var f=Math.round(n);return "★★★★★".slice(0,f)+"☆☆☆☆☆".slice(0,5-f)}
+function ymText(ym){if(!ym)return "-";var p=ym.split("-");return p[0]+"년 "+Number(p[1])+"월"}
+function fsize(n){return n>1048576?(n/1048576).toFixed(1)+"MB":Math.max(1,Math.round(n/1024))+"KB"}
+function safeUrl(u){return /^https:\/\//.test(u||"")?u:""}
+
+function seed(){
+ var s=[
+  {id:"s1",name:"솥밥집 다온",kind:"맛집탐방",cuisine:"한식",area:"성수",address:"서울 성동구 성수동 일대",team:"상품기획팀",ym:"2026-10",
+   notes:"평일 점심 대기 30분 이상. 1인 좌석 비중이 높음.",
+   report:{purpose:"1인 가구 대상 솥밥 메뉴 구성 확인",menu:"전복 솥밥 18,000원, 스테이크 솥밥 21,000원",review:"밥 짓는 시간을 감안해도 회전이 빠름. 반찬은 3종으로 단순화.",insight:"간편식 솥밥 라인에 누룽지 숭늉 구성 검토 가치 있음."},
+   ratings:[{by:"김서연",team:"상품기획팀",stars:5,comment:"전복 솥밥 완성도 높음"},{by:"박준호",team:"상품기획팀",stars:4,comment:"가격 대비 양은 보통"}]},
+  {id:"s2",name:"트라토리아 루체",kind:"맛집탐방",cuisine:"양식",area:"이태원",address:"서울 용산구 이태원동 일대",team:"마케팅팀",ym:"2026-09",
+   notes:"예약 필수. 외국인 손님 비중 높음.",
+   report:{purpose:"생면 파스타 가격대와 플레이팅 조사",menu:"라구 탈리아텔레 24,000원, 부라타 샐러드 19,000원",review:"생면 식감이 강점. 서비스 응대 속도는 느린 편.",insight:"SNS 노출은 플레이팅보다 오픈 키친 영상이 주도."},
+   ratings:[{by:"이하은",team:"마케팅팀",stars:4,comment:"라구 소스 진함"}]},
+  {id:"s3",name:"스시 하루노",kind:"맛집탐방",cuisine:"일식",area:"강남역",address:"서울 강남구 역삼동 일대",team:"신사업팀",ym:"2026-10",
+   notes:"런치 오마카세 12석, 1부·2부 운영.",
+   report:{purpose:"중가 오마카세 코스 구성 벤치마킹",menu:"런치 오마카세 55,000원",review:"샤리 온도 관리가 일정함. 후반부 구성이 다소 단조로움.",insight:"중가대에서는 코스 길이보다 좌석 회전이 수익을 좌우."},
+   ratings:[{by:"최민재",team:"신사업팀",stars:4,comment:""},{by:"정유나",team:"신사업팀",stars:5,comment:"가격 대비 만족"},{by:"김서연",team:"상품기획팀",stars:4,comment:""}]},
+  {id:"s4",name:"홍연각",kind:"맛집탐방",cuisine:"중식",area:"여의도",address:"서울 영등포구 여의도동 일대",team:"상품기획팀",ym:"2026-08",
+   notes:"직장인 점심 수요 집중. 룸 예약은 일주일 전 마감.",
+   report:{purpose:"직장인 상권 중식 세트 가격 확인",menu:"점심 세트 16,000원, 마라 짬뽕 13,000원",review:"세트 구성이 알차지만 저녁 단품 가격은 높은 편.",insight:"마라 계열 메뉴 주문 비중이 눈에 띄게 높음."},
+   ratings:[{by:"박준호",team:"상품기획팀",stars:3,comment:"점심엔 너무 붐빔"}]},
+  {id:"s5",name:"밀면옥",kind:"맛집탐방",cuisine:"한식",area:"부산 해운대",address:"부산 해운대구 우동 일대",team:"마케팅팀",ym:"2026-07",
+   notes:"여름 성수기 방문. 포장 주문 비중이 높음.",
+   report:{purpose:"지역 면 요리의 포장·배달 방식 조사",menu:"물밀면 9,000원, 비빔밀면 9,500원",review:"육수 포장 용기가 따로 제공되어 면이 불지 않음.",insight:"육수 분리 포장 방식은 냉면 간편식에 적용 가능."},
+   ratings:[{by:"이하은",team:"마케팅팀",stars:5,comment:"육수가 깔끔함"},{by:"최민재",team:"신사업팀",stars:4,comment:""}]},
+  {id:"s6",name:"판교 푸드홀 상권 조사",kind:"시장조사",cuisine:"기타",area:"판교",address:"경기 성남시 분당구 백현동 일대",team:"신사업팀",ym:"2026-10",
+   notes:"평일 12시 전후 유동 인구 집중, 주말은 가족 단위 중심.",
+   report:{purpose:"푸드홀 입점 브랜드 구성과 객단가 파악",menu:"입점 22개 매장, 점심 객단가 12,000~15,000원대",review:"한식 비중이 가장 높고 샐러드·포케 매장이 늘어나는 추세.",insight:"평일 점심과 주말 수요가 달라 메뉴 이원화가 필요."},
+   ratings:[{by:"정유나",team:"신사업팀",stars:4,comment:"조사 가치 높음"}]}
+ ];
+ s.forEach(function(r){var p=place(r.id,r.area);r.lat=p.lat;r.lng=p.lng;r.files=[];r.photos=[];r.sample=true});
+ return s;
+}
+
+/* ---------- 로그인과 저장소: 실제 모드(Microsoft 365 + SharePoint) ---------- */
+var msalApp=null,siteId=null;
+async function token(){
+ var acc=msalApp.getAllAccounts()[0];
+ try{return (await msalApp.acquireTokenSilent({scopes:SCOPES,account:acc})).accessToken}
+ catch(e){await msalApp.acquireTokenRedirect({scopes:SCOPES,account:acc});throw e}
+}
+async function graph(path,opt){
+ opt=opt||{};var t=await token();
+ var h={Authorization:"Bearer "+t};if(!opt.raw)h["Content-Type"]="application/json";else if(opt.type)h["Content-Type"]=opt.type;
+ var res=await fetch(/^https:/.test(path)?path:"https://graph.microsoft.com/v1.0"+path,{method:opt.method||"GET",headers:h,body:opt.raw?opt.body:(opt.body?JSON.stringify(opt.body):undefined)});
+ if(!res.ok){var m="";try{m=(await res.json()).error.message}catch(e){}throw new Error("SharePoint 요청 실패 ("+res.status+") "+m)}
+ if(opt.blob)return res.blob();
+ return res.status===204?null:res.json();
+}
+function listPath(){return "/sites/"+siteId+"/lists/"+encodeURIComponent(LIST)+"/items"}
+function fromItem(it){var r;try{r=JSON.parse(it.fields.RecordJson)}catch(e){return null}r.spId=it.id;r.files=r.files||[];r.photos=r.photos||[];r.ratings=r.ratings||[];r.report=r.report||{};return r}
+function toFields(r){var c=JSON.parse(JSON.stringify(r));delete c.spId;return {Title:r.name,RecordJson:JSON.stringify(c)}}
+var SP={
+ list:async function(){
+  if(!siteId)siteId=(await graph("/sites/"+CFG.sharepointSite+"?$select=id")).id;
+  var out=[],url=listPath()+"?$expand=fields($select=Title,RecordJson)&$top=200";
+  while(url){var d=await graph(url);d.value.forEach(function(it){var r=fromItem(it);if(r)out.push(r)});url=d["@odata.nextLink"]||null}
+  return out;
+ },
+ fresh:async function(r){var it=await graph(listPath()+"/"+r.spId+"?$expand=fields($select=Title,RecordJson)");return fromItem(it)||r},
+ save:async function(r){
+  if(r.spId)await graph(listPath()+"/"+r.spId+"/fields",{method:"PATCH",body:toFields(r)});
+  else r.spId=(await graph(listPath(),{method:"POST",body:{fields:toFields(r)}})).id;
+ },
+ remove:async function(r){await graph(listPath()+"/"+r.spId,{method:"DELETE"})},
+ upload:async function(r,file,sub){
+  var p="/sites/"+siteId+"/drive/root:/"+encodeURIComponent(FOLDER)+"/"+encodeURIComponent(r.id)+"/"+(sub?sub+"/":"")+encodeURIComponent(file.name)+":/content";
+  var d=await graph(p,{method:"PUT",raw:true,body:file,type:file.type||"application/octet-stream"});
+  return {name:file.name,size:file.size,type:file.type,url:d.webUrl,itemId:d.id};
+ },
+ addPhoto:async function(r,file){return SP.upload(r,file,"photos")},
+ dropFile:async function(f){if(f.itemId)await graph("/sites/"+siteId+"/drive/items/"+f.itemId,{method:"DELETE"})},
+ photoBlob:async function(ph){return graph("/sites/"+siteId+"/drive/items/"+ph.itemId+"/content",{blob:true})},
+ photoUrl:async function(ph){return URL.createObjectURL(await SP.photoBlob(ph))}
+};
+/* ---------- 저장소: 시제품 모드(이 브라우저에만 저장) ---------- */
+var blobs={};
+var DEMO={
+ list:async function(){return load(KEY_R)||seed()},
+ fresh:async function(r){return r},
+ save:async function(){saveAll()},
+ remove:async function(){saveAll()},
+ addPhoto:async function(r,file){return {name:file.name,size:file.size,type:"image/jpeg",data:await shrink(file)}},
+ dropFile:async function(){},
+ upload:async function(r,file){try{blobs[r.id+":"+file.name]=URL.createObjectURL(file)}catch(e){}return {name:file.name,size:file.size,type:file.type}}
+};
+function saveAll(){try{localStorage.setItem(KEY_R,JSON.stringify(S.records))}catch(e){throw new Error("이 브라우저의 저장 공간이 부족합니다. 사진 수를 줄여 주세요.")}}
+function shrink(file,maxPx){
+ return new Promise(function(ok,no){
+  var u=URL.createObjectURL(file),im=new Image();
+  im.onload=function(){var m=maxPx||1100,k=Math.min(1,m/Math.max(im.width,im.height)),c=document.createElement("canvas");
+   c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);
+   URL.revokeObjectURL(u);ok(c.toDataURL("image/jpeg",0.82))};
+  im.onerror=function(){URL.revokeObjectURL(u);no(new Error("사진을 읽지 못했습니다: "+file.name))};
+  im.src=u;
+ });
+}
+var photoCache={};
+function photoSrc(ph){
+ if(ph.data)return ph.data;
+ var key=ph.itemId||ph.pid;
+ if(!key||!store.photoUrl)return "";
+ if(photoCache[key])return photoCache[key]==="wait"?"":photoCache[key];
+ photoCache[key]="wait";
+ store.photoUrl(ph).then(function(u){if(u){photoCache[key]=u;if(!S.form)render()}else delete photoCache[key]}).catch(function(){delete photoCache[key]});
+ return "";
+}
+/* ---------- 저장소: Firebase 모드(Google 로그인 + Firestore) ---------- */
+var fdb=null,fauth=null,fbUnsub=null;
+function norm(r){r.photos=r.photos||[];r.files=r.files||[];r.ratings=r.ratings||[];r.report=r.report||{};return r}
+function fbClean(r){var c=JSON.parse(JSON.stringify(r));delete c.spId;return c}
+function toB64(blob){return new Promise(function(ok,no){var fr=new FileReader();fr.onload=function(){var t=String(fr.result);ok(t.slice(t.indexOf(",")+1))};fr.onerror=function(){no(new Error("파일을 읽지 못했습니다."))};fr.readAsDataURL(blob)})}
+function b64Bytes(b){var bin=atob(b),u=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u}
+function snapList(q){var out=[];q.forEach(function(d){var r=d.data();r.id=d.id;out.push(norm(r))});return out}
+var FBS={
+ list:async function(){var out=snapList(await fdb.collection("records").get());FBS.watch();return out},
+ watch:function(){
+  if(fbUnsub)return;var first=true;
+  fbUnsub=fdb.collection("records").onSnapshot(function(q){if(first){first=false;return}S.records=snapList(q);if(!S.form&&!S.busy)render()},function(){});
+ },
+ fresh:async function(r){var d=await fdb.collection("records").doc(r.id).get();if(!d.exists)return r;var x=d.data();x.id=d.id;return norm(x)},
+ save:async function(r){await fdb.collection("records").doc(r.id).set(fbClean(r))},
+ remove:async function(r){
+  await fdb.collection("records").doc(r.id).delete();
+  var all=(r.photos||[]).concat(r.files||[]);for(var i=0;i<all.length;i++){try{await FBS.dropFile(all[i])}catch(e){}}
+ },
+ addPhoto:async function(r,file){
+  var data=await shrink(file,1100);if(data.length>900000)data=await shrink(file,700);
+  var ref=fdb.collection("photos").doc();await ref.set({recId:r.id,name:file.name,data:data});
+  photoCache[ref.id]=data;return {name:file.name,size:file.size,type:"image/jpeg",pid:ref.id};
+ },
+ upload:async function(r,file){
+  if(file.size>FILE_MAX)throw new Error(file.name+" 파일이 10MB를 넘어 올릴 수 없습니다.");
+  var ref=fdb.collection("files").doc(),n=Math.max(1,Math.ceil(file.size/CHUNK));
+  for(var i=0;i<n;i++)await ref.collection("chunks").doc(String(i)).set({i:i,data:await toB64(file.slice(i*CHUNK,(i+1)*CHUNK))});
+  await ref.set({recId:r.id,name:file.name,type:file.type||"",size:file.size,chunks:n});
+  return {name:file.name,size:file.size,type:file.type||"",fid:ref.id,chunks:n};
+ },
+ dropFile:async function(f){
+  if(f.pid)await fdb.collection("photos").doc(f.pid).delete();
+  if(f.fid){var ref=fdb.collection("files").doc(f.fid);for(var i=0;i<(f.chunks||0);i++)await ref.collection("chunks").doc(String(i)).delete();await ref.delete()}
+ },
+ photoUrl:async function(ph){var d=await fdb.collection("photos").doc(ph.pid).get();return d.exists?d.data().data:""},
+ fileBlob:async function(f){
+  var parts=[],ref=fdb.collection("files").doc(f.fid);
+  for(var i=0;i<f.chunks;i++){var d=await ref.collection("chunks").doc(String(i)).get();if(!d.exists)throw new Error("파일 조각을 찾지 못했습니다.");parts.push(b64Bytes(d.data().data))}
+  return new Blob(parts,{type:f.type||"application/octet-stream"});
+ }
+};
+function saveBlob(blob,name){var u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u)},4000)}
+var store=REAL?SP:(FB?FBS:DEMO);
+
+var S={user:null,records:[],f:{kind:"",sido:"",cuisine:"",year:"",q:""},sel:null,form:null,confirmDel:false,myStars:0,formStars:0,zoom:"",gateErr:"",info:"",denied:"",needTeam:false,fbUid:"",fbName:"",fbEmail:"",admin:false,mem:null,err:"",busy:false,loading:false,gm:false,gmFail:false};
+function rec(id){for(var i=0;i<S.records.length;i++)if(S.records[i].id===id)return S.records[i];return null}
+function visible(){
+ var f=S.f,q=f.q.trim().toLowerCase();
+ return S.records.filter(function(r){
+  if(f.kind&&r.kind!==f.kind)return false;
+  if(f.sido&&sidoOf(r)!==f.sido)return false;
+  if(f.cuisine&&r.cuisine!==f.cuisine)return false;
+  if(f.year&&(r.ym||"").slice(0,4)!==f.year)return false;
+  if(q&&(r.name+" "+r.address+" "+r.team+" "+r.notes).toLowerCase().indexOf(q)<0)return false;
+  return true;
+ }).sort(function(a,b){return (b.ym||"").localeCompare(a.ym||"")});
+}
+function opts(list,cur,all){return (all?'<option value="">'+all+'</option>':'')+list.map(function(v){return '<option'+(v===cur?' selected':'')+'>'+esc(v)+'</option>'}).join("")}
+function uniq(a){return a.filter(function(v,i){return v&&a.indexOf(v)===i})}
+
+/* ---------- Google 지도 ---------- */
+var gmapEl=null,gmap=null,gmarkers=[],gfitKey=null;
+function loadGmaps(){
+ if(!CFG.googleMapsApiKey)return;
+ window.__matzipGm=function(){S.gm=true;render()};
+ window.gm_authFailure=function(){S.gm=false;S.gmFail=true;render()};
+ var s=document.createElement("script");
+ s.src="https://maps.googleapis.com/maps/api/js?key="+encodeURIComponent(CFG.googleMapsApiKey)+"&callback=__matzipGm&language=ko&region=KR";
+ s.async=true;s.onerror=function(){S.gmFail=true;render()};
+ document.head.appendChild(s);
+}
+function syncGmap(list){
+ var slot=document.getElementById("gmap-slot");if(!slot)return;
+ if(!gmapEl){gmapEl=document.createElement("div");gmapEl.className="gmap";gmap=new google.maps.Map(gmapEl,{center:{lat:37.54,lng:127.0},zoom:11,mapTypeControl:false,streetViewControl:false,fullscreenControl:false})}
+ slot.appendChild(gmapEl);
+ gmarkers.forEach(function(m){m.setMap(null)});gmarkers=[];
+ var b=new google.maps.LatLngBounds();
+ list.forEach(function(r){
+  var on=r.id===S.sel,pos={lat:r.lat,lng:r.lng};b.extend(pos);
+  var m=new google.maps.Marker({position:pos,map:gmap,title:r.name,zIndex:on?10:1,
+   label:{text:r.cuisine.charAt(0),color:"#ffffff",fontWeight:"700",fontSize:"13px"},
+   icon:{path:google.maps.SymbolPath.CIRCLE,scale:on?19:14,fillColor:ccolor(r.cuisine),fillOpacity:1,strokeColor:on?"#1d1a12":"#ffffff",strokeWeight:on?3:2}});
+  m.addListener("click",function(){act("sel",{getAttribute:function(){return r.id}})});
+  gmarkers.push(m);
+ });
+ var key=list.map(function(r){return r.id}).join(",");
+ if(key!==gfitKey&&list.length){gfitKey=key;if(list.length===1){gmap.setCenter(b.getCenter());gmap.setZoom(15)}else gmap.fitBounds(b,60)}
+}
+function geocode(address){
+ return new Promise(function(ok){
+  if(!S.gm||!address){ok(null);return}
+  try{new google.maps.Geocoder().geocode({address:address,region:"KR"},function(res,status){
+   if(status==="OK"&&res&&res[0])ok({lat:res[0].geometry.location.lat(),lng:res[0].geometry.location.lng()});else ok(null)})}
+  catch(e){ok(null)}
+ });
+}
+
+function mapSvg(list){
+ var W=800,H=500,sel=S.sel?rec(S.sel):null,focus=S.f.sido||(sel?sidoOf(sel):"");
+ if(!focus){var cnt={},best=0;list.forEach(function(r){var k=sidoOf(r);cnt[k]=(cnt[k]||0)+1;if(cnt[k]>best){best=cnt[k];focus=k}})}
+ var near=list.filter(function(r){return sidoOf(r)===focus});
+ var pts=near.length?near:(list.length?list:[{lat:37.50,lng:126.93},{lat:37.57,lng:127.08}]);
+ var la=pts.map(function(p){return p.lat}),ln=pts.map(function(p){return p.lng});
+ var minLa=Math.min.apply(0,la),maxLa=Math.max.apply(0,la),minLn=Math.min.apply(0,ln),maxLn=Math.max.apply(0,ln);
+ var cLa=(minLa+maxLa)/2,cLn=(minLn+maxLn)/2,kx=Math.cos(cLa*Math.PI/180);
+ var spLa=Math.max(maxLa-minLa,0.05)*1.5,spLn=Math.max(maxLn-minLn,0.07)*1.5;
+ var sc=Math.min(W/(spLn*kx),H/spLa);
+ function X(lng){return W/2+(lng-cLn)*kx*sc}
+ function Y(lat){return H/2-(lat-cLa)*sc}
+ var o='<svg viewBox="0 0 '+W+' '+H+'" role="group" aria-label="식당 위치 지도">';
+ for(var i=1;i<8;i++)o+='<line x1="'+(i*100)+'" y1="0" x2="'+(i*100)+'" y2="'+H+'" stroke="var(--line)" stroke-width="1"/>';
+ for(i=1;i<5;i++)o+='<line x1="0" y1="'+(i*100)+'" x2="'+W+'" y2="'+(i*100)+'" stroke="var(--line)" stroke-width="1"/>';
+ o+='<polyline fill="none" stroke="var(--water)" stroke-width="'+Math.max(3,Math.min(16,sc*0.012))+'" stroke-linecap="round" stroke-linejoin="round" points="'+HAN.map(function(p){return X(p[0]).toFixed(1)+","+Y(p[1]).toFixed(1)}).join(" ")+'"/>';
+ mapAreas().forEach(function(a){var x=X(a.lng),y=Y(a.lat);if(x<30||x>W-60||y<24||y>H-20)return;
+  o+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="3" fill="var(--muted)" opacity=".6"/><text x="'+(x+7).toFixed(1)+'" y="'+(y-7).toFixed(1)+'" font-size="13" fill="var(--muted)">'+esc(a.k)+'</text>'});
+ list.forEach(function(r){var x=X(r.lng),y=Y(r.lat),on=r.id===S.sel,a=avg(r);if(x<-30||x>W+30||y<-30||y>H+30)return;
+  o+='<g class="mk" tabindex="0" role="button" data-act="sel" data-id="'+esc(r.id)+'" aria-label="'+esc(r.name)+' 보고서 열기"><title>'+esc(r.name)+(a?" · 별점 "+a.toFixed(1):"")+'</title>';
+  if(on)o+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="25" fill="var(--yellow)" stroke="var(--ink)" stroke-width="2.5"/>';
+  o+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="17" fill="'+ccolor(r.cuisine)+'" stroke="#fff" stroke-width="2.5"/>';
+  o+='<text x="'+x.toFixed(1)+'" y="'+(y+5).toFixed(1)+'" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">'+esc(r.cuisine.charAt(0))+'</text>';
+  if(on)o+='<text x="'+x.toFixed(1)+'" y="'+(y+46).toFixed(1)+'" text-anchor="middle" font-size="15" font-weight="700" fill="var(--ink)" stroke="var(--map)" stroke-width="4" paint-order="stroke">'+esc(r.name)+'</text>';
+  o+='</g>'});
+ return o+'</svg>';
+}
+
+function detailHtml(r){
+ if(!r)return '<div class="empty">지도의 표시나 목록에서 식당을 선택하면<br>보고서와 별점이 여기에 표시됩니다.</div>';
+ var a=avg(r),ar={sido:sidoOf(r),k:r.area};
+ var same=S.records.filter(function(x){return x.id!==r.id&&sidoOf(x)===ar.sido});
+ var mine=null;r.ratings.forEach(function(x){if(x.by===S.user.name)mine=x});
+ var h='<div class="tags"><span class="pill kind">'+esc(r.kind)+'</span><span class="pill">'+esc(r.cuisine)+'</span>'+(r.sample?'<span class="pill sample">예시 데이터</span>':'')+'</div>';
+ h+='<h2>'+esc(r.name)+'</h2>';
+ h+='<div>'+(a?'<span class="stars" aria-hidden="true">'+starText(a)+'</span> <b>'+a.toFixed(1)+'</b> <span class="hint">('+r.ratings.length+'명 평가)</span>':'<span class="hint">아직 별점이 없습니다</span>')+'</div>';
+ h+='<dl class="facts"><dt>주소</dt><dd>'+esc(r.address)+' · <a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(r.name+" "+r.address)+'" target="_blank" rel="noopener">Google 지도에서 열기</a></dd>';
+ h+='<dt>지역</dt><dd>'+esc(areaText(r))+'</dd><dt>음식 종류</dt><dd>'+esc(r.cuisine)+'</dd><dt>방문팀</dt><dd>'+esc(r.team)+'</dd><dt>방문연월</dt><dd>'+esc(ymText(r.ym))+'</dd><dt>특이사항</dt><dd>'+(esc(r.notes)||"-")+'</dd></dl>';
+ h+='<div class="sec"><h3>식당 사진</h3>';
+ if(!r.photos.length)h+='<span class="hint">등록된 사진이 없습니다. 수정에서 사진을 추가할 수 있습니다.</span>';
+ else{h+='<div class="photos">';r.photos.forEach(function(ph,i){var src=photoSrc(ph);
+  h+=src?'<button type="button" class="ph" data-act="zoom" data-i="'+i+'" aria-label="'+esc(ph.name)+' 크게 보기"><img alt="'+esc(ph.name)+'" src="'+src+'"></button>':'<div class="ph wait">불러오는 중…</div>'});h+='</div>'}
+ h+='</div>';
+ h+='<div class="sec"><h3>보고서</h3>';
+ [["purpose","조사 목적"],["menu","대표 메뉴·가격"],["review","평가"],["insight","시사점"]].forEach(function(p){if(r.report[p[0]])h+='<div class="lab">'+p[1]+'</div><p>'+esc(r.report[p[0]])+'</p>'});
+ h+='</div>';
+ h+='<div class="sec"><h3>첨부 보고서 파일</h3><div class="files">';
+ if(!r.files.length)h+='<span class="hint">첨부된 파일이 없습니다.</span>';
+ r.files.forEach(function(f,fi){var b=blobs[r.id+":"+f.name],u=safeUrl(f.url);
+  h+='<div>'+(u?'<a href="'+esc(u)+'" target="_blank" rel="noopener">'+esc(f.name)+'</a>':esc(f.name))+' <span class="hint">'+fsize(f.size)+'</span>'+(f.fid?' <button type="button" class="btn small" data-act="file-get" data-i="'+fi+'">내려받기</button>':'')+'</div>';
+  if(b&&/^image\//.test(f.type))h+='<img alt="'+esc(f.name)+'" src="'+b+'">'});
+ h+='</div></div>';
+ h+='<div class="sec"><h3>우리 인원이 남긴 별점</h3>';
+ r.ratings.forEach(function(x){h+='<div class="rating"><span class="stars" aria-label="별점 '+x.stars+'점">'+starText(x.stars)+'</span><span>'+esc(x.comment)+'</span><span class="by">'+esc(x.by)+' · '+esc(x.team)+'</span></div>'});
+ var cur=S.myStars||(mine?mine.stars:0);
+ h+='<div class="inline" style="margin-top:8px"><div class="starpick" role="group" aria-label="내 별점">';
+ for(var i=1;i<=5;i++)h+='<button type="button" class="'+(i<=cur?"on":"")+'" data-act="mystar" data-n="'+i+'" aria-label="'+i+'점">★</button>';
+ h+='</div><input type="text" id="my-comment" placeholder="한 줄 평 (선택)" value="'+esc(mine?mine.comment:"")+'"><button class="btn small primary" data-act="rate"'+(S.busy?" disabled":"")+'>'+(mine?"내 별점 수정":"별점 남기기")+'</button></div></div>';
+ h+='<div class="sec"><h3>'+esc(ar.sido)+' 지역의 다른 기록</h3>';
+ if(!same.length)h+='<span class="hint">같은 지역의 다른 기록이 없습니다.</span>';
+ same.forEach(function(x){var v=avg(x);h+='<div class="rating"><a href="#" data-act="sel" data-id="'+esc(x.id)+'">'+esc(x.name)+'</a><span class="by">'+esc(x.cuisine)+' · '+esc(x.area)+(v?' · ★ '+v.toFixed(1):'')+'</span></div>'});
+ h+='</div>';
+ h+='<div class="inline"><button class="btn" data-act="edit">수정</button>';
+ h+=S.confirmDel?'<span class="err">이 기록을 삭제할까요?</span><button class="btn danger" data-act="del-yes"'+(S.busy?" disabled":"")+'>삭제</button><button class="btn" data-act="del-no">취소</button>':'<button class="btn danger" data-act="del">삭제</button>';
+ h+='</div>';
+ return h;
+}
+
+function formHtml(){
+ var r=S.form.rec,n=S.form.isNew;
+ function fld(id,label,html){return '<label class="field" for="'+id+'">'+label+html+'</label>'}
+ function inp(id,v,ph,type){return '<input id="'+id+'" type="'+(type||"text")+'" value="'+esc(v)+'" placeholder="'+esc(ph||"")+'">'}
+ function pick(id,label,list,cur,ph,extra){var l=cur&&list.indexOf(cur)<0?list.concat([cur]):list;
+  return '<div class="field"><label for="'+id+'">'+label+'</label><select id="'+id+'" data-new="1">'+opts(l,cur)+'<option value="__new">+ 직접 추가</option></select>'+extra+'<input id="'+id+'-new" type="text" hidden placeholder="'+esc(ph)+'" aria-label="'+label+' 새 항목"></div>'}
+ function ta(id,v,ph){return '<textarea id="'+id+'" placeholder="'+esc(ph||"")+'">'+esc(v)+'</textarea>'}
+ var h='<div class="overlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="form-title"><h2 id="form-title">'+(n?"새 기록 작성":"기록 수정")+'</h2>';
+ h+='<div class="cols">'+fld("f-name","식당·조사 대상 이름",inp("f-name",r.name,"예: 솥밥집 다온"))+pick("f-kind","구분",kinds(),r.kind,"새 구분 이름","")+pick("f-cuisine","음식 종류",cuisines(),r.cuisine,"새 음식 종류 이름","")+'</div>';
+ h+='<div class="cols">'+fld("f-address","주소",inp("f-address",r.address,"도로명 주소"))+pick("f-area","지역 구분",mapAreas().map(function(a){return a.k}),r.area,"새 지역 이름 (예: 전주 한옥마을)",'<select id="f-sido-new" hidden aria-label="새 지역의 시·도">'+opts(SIDOS,r.sido||"서울")+'</select>')+'</div>';
+ h+='<div class="hint">'+"구분, 음식 종류, 지역 구분은 목록 맨 아래의 '+ 직접 추가'로 새 항목을 만들 수 있습니다. "+(S.gm?"저장하면 주소로 Google 지도 위치를 찾아 표시합니다. 주소를 찾지 못하면 지역 구분의 중심에 표시됩니다.":"Google 지도가 연결되면 주소로 위치를 자동으로 찾습니다. 지금은 지역 구분의 중심 근처에 표시됩니다.")+'</div>';
+ h+='<div class="cols">'+fld("f-team","방문팀",inp("f-team",r.team,"예: 상품기획팀"))+fld("f-ym","방문연월",inp("f-ym",r.ym,"2026-11","month"))+'</div>';
+ h+=fld("f-notes","특이사항",ta("f-notes",r.notes,"대기 시간, 예약 여부, 손님 구성 등"));
+ h+='<div class="cols">'+fld("f-purpose","조사 목적",ta("f-purpose",r.report.purpose))+fld("f-menu","대표 메뉴·가격",ta("f-menu",r.report.menu))+'</div>';
+ h+='<div class="cols">'+fld("f-review","평가",ta("f-review",r.report.review))+fld("f-insight","시사점",ta("f-insight",r.report.insight))+'</div>';
+ h+=fld("f-photos","식당 사진 첨부 (여러 장 선택 가능)",'<input id="f-photos" type="file" multiple accept="image/*">');
+ if(r.photos.length){h+='<div class="photos">';r.photos.forEach(function(ph,i){var src=photoSrc(ph);
+  h+='<div class="cell"><div class="ph'+(src?'':' wait')+'" style="cursor:default">'+(src?'<img alt="'+esc(ph.name)+'" src="'+src+'">':'불러오는 중…')+'</div><button type="button" class="btn small danger" data-act="ph-del" data-i="'+i+'">사진 빼기</button></div>'});h+='</div>'}
+ h+='<div class="hint">'+(REAL?"사진은 회사 SharePoint에 올라갑니다.":FB?"사진은 크기를 줄여서 공용 저장소에 올라갑니다.":"시제품에서는 사진을 줄여서 이 브라우저에 저장합니다. 여러 장을 넣으면 저장 공간이 부족할 수 있습니다.")+'</div>';
+ h+=fld("f-files","보고서 파일 첨부 (PDF, Word, PPT, Excel)",'<input id="f-files" type="file" multiple accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx">');
+ if(r.files.length)h+='<div class="hint">이미 첨부됨: '+r.files.map(function(f){return esc(f.name)}).join(", ")+'</div>';
+ h+='<div class="hint">'+(REAL?"파일은 회사 SharePoint에 올라갑니다.":FB?"파일은 한 개에 10MB까지 올릴 수 있습니다.":"시제품에서는 파일 이름만 저장됩니다. 실제 버전에서는 파일이 회사 SharePoint에 올라갑니다.")+'</div>';
+ if(n){h+='<div class="field">내 별점 (선택)<div class="starpick" role="group" aria-label="내 별점">';for(var i=1;i<=5;i++)h+='<button type="button" class="'+(i<=S.formStars?"on":"")+'" data-act="fstar" data-n="'+i+'" aria-label="'+i+'점">★</button>';h+='</div></div>'}
+ if(S.form.err)h+='<div class="err" role="alert">'+esc(S.form.err)+'</div>';
+ h+='<div class="inline" style="justify-content:flex-end"><button class="btn" data-act="cancel">취소</button><button class="btn primary" data-act="save"'+(S.busy?" disabled":"")+'>'+(S.busy?"저장 중…":"저장")+'</button></div></div></div>';
+ return h;
+}
+
+function membersHtml(){
+ var m=S.mem,h='<div class="overlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mem-title"><h2 id="mem-title">사용자 관리</h2>';
+ h+='<p class="hint" style="margin:0">여기에 등록된 이메일의 계정만 로그인해서 기록을 보고 쓸 수 있습니다. 관리자는 사용자를 추가하거나 삭제할 수 있습니다.</p>';
+ h+='<div class="cols"><label class="field" for="m-email">이메일<input id="m-email" type="email" autocomplete="off" placeholder="예: hong@gmail.com"></label><label class="field" for="m-name">이름<input id="m-name" type="text" autocomplete="off" placeholder="예: 홍길동"></label></div>';
+ h+='<div class="inline"><button class="btn primary" data-act="mem-add"'+(S.busy?" disabled":"")+'>사용자 추가</button>'+(m.err?'<span class="err" role="alert">'+esc(m.err)+'</span>':'')+'</div>';
+ h+='<div class="sec"><h3>등록된 사용자 '+m.list.length+'명</h3>';
+ if(m.loading)h+='<span class="hint">불러오는 중…</span>';
+ m.list.forEach(function(x){var me=x.email===S.fbEmail;
+  h+='<div class="rating" style="justify-content:space-between"><span><b>'+esc(x.name||"(이름 없음)")+'</b> <span class="by">'+esc(x.email)+'</span> '+(x.admin?'<span class="pill kind">관리자</span>':'')+(me?' <span class="pill">나</span>':'')+'</span>';
+  h+=me?'<span class="hint">본인은 바꿀 수 없습니다</span>':'<span class="inline"><button class="btn small" data-act="mem-admin" data-id="'+esc(x.email)+'">'+(x.admin?"관리자 해제":"관리자로 지정")+'</button><button class="btn small danger" data-act="mem-del" data-id="'+esc(x.email)+'">삭제</button></span>';
+  h+='</div>'});
+ h+='</div><div class="inline" style="justify-content:flex-end"><button class="btn" data-act="mem-close">닫기</button></div></div></div>';
+ return h;
+}
+async function loadMembers(){
+ var q=await fdb.collection("members").get(),out=[];
+ q.forEach(function(d){var x=d.data();out.push({email:d.id,name:x.name||"",admin:x.admin===true})});
+ out.sort(function(a,b){return a.email.localeCompare(b.email)});
+ S.mem.list=out;S.mem.loading=false;
+}
+function gateHtml(){
+ var h='<div class="gatebg"><div class="gate">';
+ if(FB){
+  h+='<h1>맛집탐방 기록 지도</h1>';
+  if(location.protocol==="file:")h+='<p style="margin:0;color:var(--muted)">Google 로그인은 인터넷 주소(https://)로 열었을 때만 동작합니다. 지금처럼 파일을 더블클릭해서 연 상태에서는 로그인할 수 없습니다. 앱을 올려 둔 주소로 접속해 주세요.</p>';
+  else if(S.denied)h+='<p style="margin:0">이 계정(<b>'+esc(S.denied)+'</b>)은 아직 사용자로 등록되지 않았습니다. 관리자에게 이 이메일 주소의 등록을 요청해 주세요.</p><button class="btn" data-act="logout">다른 계정으로 로그인</button>';
+  else if(S.needTeam)h+='<p style="margin:0;color:var(--muted)">'+esc(S.fbName)+' 님, 처음 오셨네요. 소속 팀을 입력해 주세요. 기록과 별점에 표시됩니다.</p><label class="field" for="g-team">팀<input id="g-team" type="text" autocomplete="off" placeholder="예: 상품기획팀"></label>'+(S.gateErr?'<div class="err" role="alert">'+esc(S.gateErr)+'</div>':'')+'<button class="btn primary" data-act="team-save">시작하기</button>';
+  else h+='<p style="margin:0;color:var(--muted)">Google 계정으로 로그인합니다. 관리자가 등록한 계정만 기록을 보고 쓸 수 있습니다.</p>'+(S.gateErr?'<div class="err" role="alert">'+esc(S.gateErr)+'</div>':'')+'<button class="btn dark" data-act="glogin">Google 계정으로 로그인</button>';
+ }else if(REAL){
+  h+='<h1>맛집탐방 기록 지도</h1><p style="margin:0;color:var(--muted)">회사 Microsoft 365 계정으로 로그인합니다. 버튼을 누르면 Microsoft 로그인 화면으로 이동합니다.</p>';
+  if(S.gateErr)h+='<div class="err" role="alert">'+esc(S.gateErr)+'</div>';
+  h+='<button class="btn dark" data-act="mslogin">Microsoft 365 계정으로 로그인</button>';
+ }else{
+  h+='<span class="pill sample" style="align-self:flex-start">시제품</span><h1>맛집탐방 기록 지도</h1>'+
+  '<p style="margin:0;color:var(--muted)">실제 버전에서는 회사 Microsoft 365 계정으로 로그인합니다. 시제품에서는 이름과 팀만 입력하면 들어갈 수 있습니다. 비밀번호는 입력하지 않습니다.</p>'+
+  '<label class="field" for="g-name">이름<input id="g-name" type="text" autocomplete="off" placeholder="예: 홍길동"></label>'+
+  '<label class="field" for="g-team">팀<input id="g-team" type="text" autocomplete="off" placeholder="예: 상품기획팀"></label>'+
+  (S.gateErr?'<div class="err" role="alert">'+esc(S.gateErr)+'</div>':'')+
+  '<button class="btn primary" data-act="enter">들어가기</button>';
+ }
+ return h+'</div></div>';
+}
+
+function resultsHtml(list,r){
+ var h="";
+ var rated=list.filter(function(x){return avg(x)!==null}),tot=0;rated.forEach(function(x){tot+=avg(x)});
+ h+='<div class="summary">기록 <b>'+list.length+'건</b>'+(rated.length?' · 평균 별점 <b>'+(tot/rated.length).toFixed(1)+'</b>':'')+' · 전체 '+S.records.length+'건</div>';
+ h+='<div class="grid"><section class="mapbox" aria-label="지도">';
+ if(S.gm)h+='<div id="gmap-slot"></div>';
+ else h+=mapSvg(list);
+ var note=S.gm?"":(S.gmFail?"Google 지도를 불러오지 못해 임시 지도를 표시합니다. API 키와 웹사이트 제한 설정을 확인해 주세요.":"임시 지도입니다. 기록이 많은 지역이나 선택한 식당의 지역을 확대해 보여 줍니다. 회사 서버에 올린 실제 버전에서는 이 자리에 Google 지도가 들어갑니다.");
+ h+='<div class="mapnote">'+(note?'<span>'+note+'</span>':'')+'<span class="legend">'+cuisines().map(function(c){return '<span><span class="dot" style="background:'+ccolor(c)+'">'+esc(c.charAt(0))+'</span>'+esc(c)+'</span>'}).join("")+'</span></div></section>';
+ h+='<section class="list" aria-label="기록 목록">';
+ if(!list.length&&!S.loading)h+='<div class="empty">'+(S.records.length?"조건에 맞는 기록이 없습니다. 필터를 바꿔 보세요.":"아직 기록이 없습니다. 새 기록 작성을 눌러 첫 기록을 남겨 보세요.")+'</div>';
+ list.forEach(function(x){var a=avg(x);h+='<button class="row" data-act="sel" data-id="'+esc(x.id)+'"'+(x.id===S.sel?' aria-current="true"':'')+'><span class="dot" style="background:'+ccolor(x.cuisine)+'">'+esc(x.cuisine.charAt(0))+'</span><span class="main"><span class="name">'+esc(x.name)+'</span><br><span class="meta">'+esc(x.kind)+' · '+esc(areaText(x))+' · '+esc(x.team)+' · '+esc(ymText(x.ym))+'</span></span><span class="score">'+(a?'★ '+a.toFixed(1):'-')+'</span></button>'});
+ h+='</section><section class="detail" aria-label="선택한 기록" aria-live="polite">'+detailHtml(r)+'</section></div>';
+ return h;
+}
+function renderResults(){
+ var box=document.getElementById("results");if(!box){render();return}
+ var list=visible();box.innerHTML=resultsHtml(list,S.sel?rec(S.sel):null);
+ if(S.gm)syncGmap(list);
+}
+
+function render(){
+ var app=document.getElementById("app");
+ if(!S.user){app.innerHTML=S.loading?'<div class="gatebg"><div class="gate">불러오는 중…</div></div>':gateHtml();return}
+ var list=visible(),r=S.sel?rec(S.sel):null;
+ var years=uniq(S.records.map(function(x){return (x.ym||"").slice(0,4)})).sort().reverse();
+ var sidos=uniq(S.records.map(function(x){return sidoOf(x)}));
+ var h='<div class="band"><header class="wrap top"><div class="brand"><h1>맛집탐방 기록 지도</h1>'+(LIVE?'':'<span class="pill sample">시제품</span>')+'</div>';
+ h+='<div class="who"><span>'+esc(S.user.name)+' · '+esc(S.user.team)+'</span>'+(FB&&S.admin?'<button class="btn" data-act="mem-open">사용자 관리</button>':'')+'<button class="btn dark" data-act="new">새 기록 작성</button><button class="btn" data-act="logout">'+(LIVE?"로그아웃":"나가기")+'</button></div></header></div>';
+ h+='<div class="wrap"><div class="filters">';
+ h+='<label class="field" for="q-kind">구분<select id="q-kind" data-f="kind">'+opts(kinds(),S.f.kind,"전체")+'</select></label>';
+ h+='<label class="field" for="q-sido">지역<select id="q-sido" data-f="sido">'+opts(sidos,S.f.sido,"전체")+'</select></label>';
+ h+='<label class="field" for="q-cuisine">음식 종류<select id="q-cuisine" data-f="cuisine">'+opts(cuisines(),S.f.cuisine,"전체")+'</select></label>';
+ h+='<label class="field" for="q-year">방문연도<select id="q-year" data-f="year">'+opts(years,S.f.year,"전체")+'</select></label>';
+ h+='<label class="field grow" for="q-text">검색<input id="q-text" type="search" data-f="q" value="'+esc(S.f.q)+'" placeholder="식당명, 주소, 팀, 특이사항"></label></div>';
+ if(S.err)h+='<div class="banner bad" role="alert"><span>'+esc(S.err)+'</span><button class="btn small" data-act="err-close">닫기</button></div>';
+ if(S.info)h+='<div class="banner" role="status"><span>'+esc(S.info)+'</span><button class="btn small" data-act="err-close">닫기</button></div>';
+ if(S.loading)h+='<div class="banner"><span>기록을 불러오는 중…</span></div>';
+ h+='<div id="results">'+resultsHtml(list,r)+'</div>';
+ h+='<div class="inline" style="padding-bottom:28px">'+(CFG.noDownload?'':'<button class="btn small" data-act="export">기록 내보내기</button>')+'<label class="btn small" for="imp-file">기록 가져오기</label><input id="imp-file" type="file" accept=".json,application/json" hidden><span class="hint">'+(LIVE?"다른 컴퓨터의 시제품에서 내보낸 기록 파일을 여기로 가져올 수 있습니다.":"이 브라우저에 저장된 기록과 사진을 파일 하나로 저장하거나, 저장한 파일을 불러옵니다.")+'</span></div></div>';
+ if(S.form)h+=formHtml();
+ if(S.mem)h+=membersHtml();
+ if(S.zoom)h+='<div class="overlay lightbox" data-act="zoom-close" role="dialog" aria-modal="true" aria-label="사진 크게 보기"><img alt="" src="'+S.zoom+'"></div>';
+ app.innerHTML=h;
+ if(S.gm)syncGmap(list);
+}
+
+function val(id){var e=document.getElementById(id);return e?e.value.trim():""}
+function pickVal(id){var v=val(id);return v==="__new"?val(id+"-new"):v}
+function keepForm(){
+ if(!S.form)return;var r=S.form.rec;
+ r.name=val("f-name");r.kind=pickVal("f-kind");r.cuisine=pickVal("f-cuisine");r.address=val("f-address");
+ var av=val("f-area");if(av==="__new"){r.area=val("f-area-new");r.sido=val("f-sido-new")}else{r.area=av;var kn=findArea(av);if(kn)r.sido=kn.sido}
+ r.team=val("f-team");r.ym=val("f-ym");r.notes=val("f-notes");
+ r.report={purpose:val("f-purpose"),menu:val("f-menu"),review:val("f-review"),insight:val("f-insight")};
+}
+function replaceRec(n){for(var j=0;j<S.records.length;j++)if(S.records[j].id===n.id){S.records[j]=n;return}S.records.push(n)}
+async function loadRecords(){
+ S.loading=true;render();
+ try{S.records=(await store.list()).map(norm)}catch(e){S.err="기록을 불러오지 못했습니다. "+e.message}
+ S.loading=false;render();
+}
+async function importRecords(file){
+ var arr;try{arr=JSON.parse(await file.text());if(!Array.isArray(arr))arr=arr.records}catch(e){arr=null}
+ if(!Array.isArray(arr)){S.err="가져올 수 없는 파일입니다. 이 앱에서 내보낸 기록 파일을 골라 주세요.";render();return}
+ S.busy=true;S.err="";S.loading=true;render();
+ var added=0,skipped=0;
+ try{
+  for(var i=0;i<arr.length;i++){
+   var r=arr[i];if(!r||!r.id||!r.name||r.sample||rec(r.id)){skipped++;continue}
+   r=norm(JSON.parse(JSON.stringify(r)));delete r.spId;
+   if(FB){
+    var ph=[];for(var j=0;j<r.photos.length;j++){var p=r.photos[j];if(!p.data)continue;
+     var ref=fdb.collection("photos").doc();await ref.set({recId:r.id,name:p.name,data:p.data});photoCache[ref.id]=p.data;ph.push({name:p.name,size:p.size,type:p.type,pid:ref.id})}
+    r.photos=ph;r.files=[];
+   }else if(REAL){r.photos=[];r.files=[]}
+   replaceRec(r);await store.save(r);added++;
+  }
+ }catch(e){S.err="가져오는 중 문제가 생겼습니다. "+e.message}
+ S.busy=false;S.loading=false;
+ if(!S.err)S.info="기록 "+added+"건을 가져왔습니다."+(skipped?" (이미 있거나 예시인 "+skipped+"건은 건너뜀)":"");
+ render();
+}
+var fbSeq=0;
+async function fbAuthChanged(u){
+ var seq=++fbSeq;
+ S.denied="";S.needTeam=false;S.gateErr="";
+ if(!u){S.user=null;S.records=[];S.loading=false;if(fbUnsub){fbUnsub();fbUnsub=null}render();return}
+ S.fbUid=u.uid;S.fbName=u.displayName||u.email||"사용자";
+ S.loading=true;render();
+ try{
+  S.fbEmail=(u.email||"").toLowerCase();S.admin=false;
+  var md=await fdb.collection("members").doc(S.fbEmail).get();
+  if(seq!==fbSeq)return;
+  if(!md.exists){S.denied=u.email||S.fbName;S.loading=false;render();return}
+  S.admin=md.data().admin===true;
+  var d=await fdb.collection("profiles").doc(u.uid).get();
+  if(seq!==fbSeq)return;
+  if(d.exists&&d.data().team){S.user={name:S.fbName,team:d.data().team};await loadRecords();return}
+  S.needTeam=true;
+ }catch(e){
+  if(seq!==fbSeq)return;
+  if(e&&e.code==="permission-denied")S.denied=u.email||S.fbName;else S.gateErr="로그인 확인 중 문제가 생겼습니다. "+(e&&e.message?e.message:e);
+ }
+ S.loading=false;render();
+}
+async function act(a,el){
+ var r=S.sel?rec(S.sel):null;
+ try{
+ if(a==="enter"){var n=val("g-name"),t=val("g-team");if(!n||!t){S.gateErr="이름과 팀을 모두 입력해 주세요.";render();return}S.user={name:n,team:t};S.gateErr="";save(KEY_U,S.user);await loadRecords();return}
+ else if(a==="glogin"){
+  var prov=new firebase.auth.GoogleAuthProvider();
+  try{await fauth.signInWithPopup(prov)}
+  catch(e){
+   if(e&&(e.code==="auth/popup-blocked"||e.code==="auth/operation-not-supported-in-this-environment")){await fauth.signInWithRedirect(prov);return}
+   if(e&&(e.code==="auth/popup-closed-by-user"||e.code==="auth/cancelled-popup-request"))return;
+   S.gateErr=e&&e.code==="auth/unauthorized-domain"?"이 주소는 Firebase 로그인 허용 목록에 없습니다. Firebase 콘솔의 Authentication > 설정 > 승인된 도메인에 이 사이트 주소를 추가해 주세요.":"로그인하지 못했습니다. "+(e&&e.message?e.message:e);
+  }
+  render();return;
+ }
+ else if(a==="team-save"){
+  var tm=val("g-team");if(!tm){S.gateErr="팀 이름을 입력해 주세요.";render();return}
+  await fdb.collection("profiles").doc(S.fbUid).set({name:S.fbName,team:tm});
+  S.needTeam=false;S.user={name:S.fbName,team:tm};await loadRecords();return;
+ }
+ else if(a==="mem-open"){S.mem={list:[],err:"",loading:true};render();try{await loadMembers()}catch(e){S.mem.loading=false;S.mem.err="사용자 목록을 불러오지 못했습니다. "+e.message}}
+ else if(a==="mem-close"){S.mem=null}
+ else if(a==="mem-add"&&S.mem){
+  var em=val("m-email").toLowerCase(),nm=val("m-name");
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)||em.indexOf("/")>=0){S.mem.err="이메일 주소를 정확히 입력해 주세요.";render();return}
+  if(S.mem.list.some(function(x){return x.email===em})){S.mem.err="이미 등록된 이메일입니다.";render();return}
+  S.busy=true;S.mem.err="";
+  try{await fdb.collection("members").doc(em).set({name:nm,admin:false,addedBy:S.fbEmail,addedAt:new Date().toISOString()});await loadMembers()}
+  catch(e){S.mem.err="추가하지 못했습니다. "+e.message}
+  S.busy=false;
+ }
+ else if((a==="mem-del"||a==="mem-admin")&&S.mem){
+  var id=el.getAttribute("data-id"),tg=null;S.mem.list.forEach(function(x){if(x.email===id)tg=x});
+  if(!tg||id===S.fbEmail)return;
+  S.mem.err="";
+  try{
+   if(a==="mem-del")await fdb.collection("members").doc(id).delete();
+   else await fdb.collection("members").doc(id).set({name:tg.name,admin:!tg.admin},{merge:true});
+   await loadMembers();
+  }catch(e){S.mem.err="바꾸지 못했습니다. "+e.message}
+ }
+ else if(a==="export"){
+  var out=[];
+  for(var xi=0;xi<S.records.length;xi++){var x=JSON.parse(JSON.stringify(S.records[xi]));if(x.sample)continue;delete x.spId;
+   for(var pi=0;pi<(x.photos||[]).length;pi++){var pp=x.photos[pi];if(!pp.data&&store.photoUrl&&pp.pid){try{pp.data=await store.photoUrl(pp)}catch(e){}}}
+   out.push(x)}
+  if(!out.length){S.err="내보낼 기록이 없습니다. 예시 데이터는 내보내지 않습니다.";render();return}
+  saveBlob(new Blob([JSON.stringify(out)],{type:"application/json"}),"matzip-records-"+new Date().toISOString().slice(0,10)+".json");return;
+ }
+ else if(a==="file-get"&&r){
+  var fl=r.files[Number(el.getAttribute("data-i"))];
+  if(fl&&fl.fid){el.disabled=true;el.textContent="받는 중…";try{saveBlob(await FBS.fileBlob(fl),fl.name)}catch(e){S.err="파일을 받지 못했습니다. "+e.message}render()}
+  return;
+ }
+ else if(a==="mslogin"){await msalApp.loginRedirect({scopes:SCOPES});return}
+ else if(a==="logout"){if(FB){await fauth.signOut();return}if(REAL){await msalApp.logoutRedirect();return}S.user=null;try{localStorage.removeItem(KEY_U)}catch(e){}}
+ else if(a==="err-close"){S.err="";S.info=""}
+ else if(a==="sel"){S.sel=el.getAttribute("data-id");S.confirmDel=false;S.myStars=0}
+ else if(a==="new"){S.formStars=0;S.form={isNew:true,rec:{id:"r"+Date.now()+Math.floor(Math.random()*1000),name:"",kind:"맛집탐방",cuisine:"한식",area:"성수",address:"",team:S.user.team,ym:new Date().toISOString().slice(0,7),notes:"",report:{purpose:"",menu:"",review:"",insight:""},files:[],photos:[],ratings:[]},removed:[]}}
+ else if(a==="edit"&&r){S.form={isNew:false,rec:JSON.parse(JSON.stringify(r)),removed:[]}}
+ else if(a==="cancel"){S.form=null}
+ else if(a==="zoom"&&r){S.zoom=photoSrc(r.photos[Number(el.getAttribute("data-i"))])}
+ else if(a==="zoom-close"){S.zoom=""}
+ else if(a==="ph-del"&&S.form){keepForm();S.form.removed.push(S.form.rec.photos.splice(Number(el.getAttribute("data-i")),1)[0])}
+ else if(a==="fstar"){S.formStars=Number(el.getAttribute("data-n"));var bs=el.parentNode.querySelectorAll("button");for(var bi=0;bi<bs.length;bi++)bs[bi].classList.toggle("on",bi<S.formStars);return}
+ else if(a==="save"){
+  if(S.busy)return;keepForm();var f=S.form.rec;
+  if(!f.name||!f.address||!f.team||!f.ym){S.form.err="이름, 주소, 방문팀, 방문연월은 꼭 입력해 주세요.";render();return}
+  if(!f.kind||!f.cuisine||!f.area){S.form.err="직접 추가를 골랐다면 새 항목 이름을 입력해 주세요.";render();return}
+  var inp=document.getElementById("f-files"),picked=inp&&inp.files?Array.prototype.slice.call(inp.files):[];
+  var pin=document.getElementById("f-photos"),pics=pin&&pin.files?Array.prototype.slice.call(pin.files):[];
+  S.busy=true;S.form.err="";render();
+  try{
+   var known=findArea(f.area),sc=SIDO_C[f.sido]||[36.5,127.8];
+   var ar=known||{k:f.area,sido:f.sido||"기타",lat:sc[0],lng:sc[1]};f.sido=ar.sido;
+   var g=await geocode(f.address);if(!g&&!known)g=await geocode(f.sido+" "+f.area);
+   var p=g||place(f.id,ar);f.lat=p.lat;f.lng=p.lng;f.sample=false;
+   f.updatedBy=S.user.name;f.updatedAt=new Date().toISOString();
+   if(!S.form.isNew){var cur=await store.fresh(f);f.ratings=cur.ratings||f.ratings}
+   for(var i=0;i<picked.length;i++)f.files.push(await store.upload(f,picked[i]));
+   for(i=0;i<pics.length;i++)f.photos.push(await store.addPhoto(f,pics[i]));
+   if(S.form.isNew&&S.formStars)f.ratings.push({by:S.user.name,team:S.user.team,stars:S.formStars,comment:""});
+   var before=rec(f.id),gone=S.form.removed;
+   replaceRec(f);
+   try{await store.save(f)}catch(e){if(before)replaceRec(before);else S.records=S.records.filter(function(x){return x.id!==f.id});throw e}
+   for(i=0;i<gone.length;i++){try{await store.dropFile(gone[i])}catch(e){}}
+   S.sel=f.id;S.form=null;
+  }catch(e){if(S.form)S.form.err="저장하지 못했습니다. "+e.message}
+  S.busy=false;
+ }
+ else if(a==="mystar"){S.myStars=Number(el.getAttribute("data-n"));var c=val("my-comment");render();var e2=document.getElementById("my-comment");if(e2)e2.value=c;return}
+ else if(a==="rate"&&r){
+  if(S.busy)return;var comment=val("my-comment"),st0=S.myStars;
+  S.busy=true;
+  try{
+   var fr=await store.fresh(r);fr.lat=fr.lat||r.lat;fr.lng=fr.lng||r.lng;
+   var mine=null;fr.ratings.forEach(function(x){if(x.by===S.user.name)mine=x});
+   var st=st0||(mine?mine.stars:0);
+   if(st){if(mine){mine.stars=st;mine.comment=comment}else fr.ratings.push({by:S.user.name,team:S.user.team,stars:st,comment:comment});
+    replaceRec(fr);await store.save(fr);S.myStars=0}
+  }catch(e){S.err="별점을 저장하지 못했습니다. "+e.message}
+  S.busy=false;
+ }
+ else if(a==="del"){S.confirmDel=true}
+ else if(a==="del-no"){S.confirmDel=false}
+ else if(a==="del-yes"&&r){
+  if(S.busy)return;S.busy=true;
+  try{S.records=S.records.filter(function(x){return x.id!==r.id});await store.remove(r);S.sel=null}
+  catch(e){S.records.push(r);S.err="삭제하지 못했습니다. "+e.message}
+  S.confirmDel=false;S.busy=false;
+ }
+ }catch(e){S.err="문제가 생겼습니다. "+(e&&e.message?e.message:e);S.busy=false}
+ render();
+}
+document.addEventListener("click",function(e){var el=e.target.closest("[data-act]");if(!el)return;e.preventDefault();act(el.getAttribute("data-act"),el)});
+document.addEventListener("keydown",function(e){
+ if(e.isComposing||e.keyCode===229)return;
+ if(e.key==="Escape"&&S.mem&&!S.busy){S.mem=null;render();return}
+ if(e.key==="Escape"&&S.zoom){S.zoom="";render();return}
+ if(e.key==="Escape"&&S.form&&!S.busy){S.form=null;render();return}
+ if((e.key==="Enter"||e.key===" ")&&e.target.classList&&e.target.classList.contains("mk")){e.preventDefault();act("sel",e.target)}
+ if(e.key==="Enter"&&(e.target.id==="g-name"||e.target.id==="g-team")){act("enter",e.target)}
+});
+document.addEventListener("change",function(e){
+ if(e.target.id==="imp-file"){var jf=e.target.files&&e.target.files[0];if(jf)importRecords(jf);return}
+ if(e.target.getAttribute&&e.target.getAttribute("data-new")){
+  var on=e.target.value==="__new",ni=document.getElementById(e.target.id+"-new");ni.hidden=!on;
+  if(e.target.id==="f-area")document.getElementById("f-sido-new").hidden=!on;
+  if(on)ni.focus();return;
+ }
+ var k=e.target.getAttribute&&e.target.getAttribute("data-f");if(k&&k!=="q"){S.f[k]=e.target.value;render()}});
+document.addEventListener("input",function(e){
+ if(e.target.id!=="q-text")return;S.f.q=e.target.value;renderResults();
+});
+
+function loadScript(src){return new Promise(function(ok,no){var s=document.createElement("script");s.src=src;s.onload=ok;s.onerror=function(){no(new Error("필요한 모듈을 불러오지 못했습니다."))};document.head.appendChild(s)})}
+async function startFirebase(){
+ if(location.protocol==="file:"){render();return}
+ S.loading=true;render();
+ try{
+  if(!window.firebase){var base="https://www.gstatic.com/firebasejs/"+FB_VER+"/firebase-";
+   await loadScript(base+"app-compat.js");await loadScript(base+"auth-compat.js");await loadScript(base+"firestore-compat.js")}
+  if(!firebase.apps.length)firebase.initializeApp(FBC);
+  fauth=firebase.auth();fdb=firebase.firestore();
+  fauth.onAuthStateChanged(function(u){fbAuthChanged(u)});
+ }catch(e){S.loading=false;S.gateErr="Firebase에 연결하지 못했습니다. "+e.message;render()}
+}
+async function start(){
+ loadGmaps();
+ if(FB){await startFirebase();return}
+ if(!REAL){S.user=load(KEY_U);if(S.user)await loadRecords();else render();return}
+ S.loading=true;render();
+ try{
+  if(!window.msal)await loadScript(CFG.msalScriptUrl||"https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js");
+  msalApp=new msal.PublicClientApplication({auth:{clientId:CFG.msClientId,authority:"https://login.microsoftonline.com/"+CFG.msTenantId,redirectUri:CFG.redirectUri||(location.origin+location.pathname)},cache:{cacheLocation:"sessionStorage"}});
+  await msalApp.handleRedirectPromise();
+  var acc=msalApp.getAllAccounts()[0];
+  if(!acc){S.loading=false;render();return}
+  var me=await graph("/me?$select=displayName,department");
+  S.user={name:me.displayName||acc.name||acc.username,team:me.department||"소속 미등록"};
+  await loadRecords();
+ }catch(e){S.loading=false;S.gateErr="로그인 준비 중 문제가 생겼습니다. "+e.message;render()}
+}
+start();
+})();
+</script>
+</body>
+</html>
