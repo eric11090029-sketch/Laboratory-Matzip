@@ -7,12 +7,12 @@ window.MATZIP_CONFIG = {
 
   // Firebase 콘솔 > 프로젝트 설정 > 일반 > 내 앱(웹)에서 보이는 firebaseConfig 값을 그대로 옮겨 적습니다.
   firebase: {
-    apiKey: "",
-    authDomain: "",
-    projectId: "",
-    storageBucket: "",
-    messagingSenderId: "",
-    appId: ""
+    apiKey: "AIzaSyBlfEl8ZrkYIQ6DF0QKlUVtjhFeGawqXzE",
+    authDomain: "matzip-223a6.firebaseapp.com",
+    projectId: "matzip-223a6",
+    storageBucket: "matzip-223a6.firebasestorage.app",
+    messagingSenderId: "876304639438",
+    appId: "1:876304639438:web:ab078dc062a8b8a7a7379f"
   },
 
   // 아래는 회사 Microsoft 365 + SharePoint로 옮길 때만 씁니다. 지금은 비워 둡니다.
